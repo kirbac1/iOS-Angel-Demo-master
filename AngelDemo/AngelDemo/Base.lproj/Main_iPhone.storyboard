@@ -51,7 +51,7 @@
                                     <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
                                 </state>
                                 <connections>
-                                    <segue destination="td4-zH-8pU" kind="modal" id="RuK-gZ-YJD"/>
+                                    <segue destination="td4-zH-8pU" kind="presentation" modalPresentationStyle="fullScreen" id="RuK-gZ-YJD"/>
                                 </connections>
                             </button>
                         </subviews>
@@ -63,7 +63,7 @@
                     <connections>
                         <outlet property="passwordField" destination="VHB-iH-mFy" id="txl-5e-mJV"/>
                         <outlet property="usernameField" destination="xaz-cn-U4v" id="waw-XV-x0D"/>
-                        <segue destination="td4-zH-8pU" kind="modal" identifier="NextView" id="ndZ-Mt-66v"/>
+                        <segue destination="td4-zH-8pU" kind="presentation" modalPresentationStyle="fullScreen" identifier="NextView" id="ndZ-Mt-66v"/>
                     </connections>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="x5A-6p-PRh" sceneMemberID="firstResponder"/>
@@ -93,7 +93,7 @@
                                     <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
                                 </state>
                                 <connections>
-                                    <segue destination="Peh-0z-qQr" kind="modal" id="RGZ-vi-FzS"/>
+                                    <segue destination="Peh-0z-qQr" kind="presentation" modalPresentationStyle="fullScreen" id="RGZ-vi-FzS"/>
                                 </connections>
                             </button>
                             <button hidden="YES" opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="EL6-wT-qfn">
@@ -105,7 +105,6 @@
                                 </state>
                                 <connections>
                                     <action selector="angelIconClicked" destination="td4-zH-8pU" eventType="touchUpInside" id="Ard-l5-nlG"/>
-                                    <segue destination="plW-MC-sVe" kind="modal" identifier="InfoView2" id="n9L-hs-kM5"/>
                                 </connections>
                             </button>
                         </subviews>
@@ -142,7 +141,7 @@
                                     <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
                                 </state>
                                 <connections>
-                                    <segue destination="plW-MC-sVe" kind="modal" id="wAm-Gn-Tvl"/>
+                                    <segue destination="plW-MC-sVe" kind="presentation" modalPresentationStyle="fullScreen" id="wAm-Gn-Tvl"/>
                                 </connections>
                             </button>
                             <button opaque="NO" contentMode="scaleToFill" fixedFrame="YES" contentHorizontalAlignment="center" contentVerticalAlignment="center" buttonType="roundedRect" lineBreakMode="middleTruncation" translatesAutoresizingMaskIntoConstraints="NO" id="wle-CK-KE7">
@@ -152,7 +151,7 @@
                                     <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
                                 </state>
                                 <connections>
-                                    <segue destination="td4-zH-8pU" kind="modal" id="7Wd-iA-Edn"/>
+                                    <segue destination="td4-zH-8pU" kind="presentation" modalPresentationStyle="fullScreen" id="7Wd-iA-Edn"/>
                                 </connections>
                             </button>
                         </subviews>
@@ -187,7 +186,7 @@
                                     <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
                                 </state>
                                 <connections>
-                                    <segue destination="Peh-0z-qQr" kind="modal" id="YWJ-ld-6wd"/>
+                                    <segue destination="Peh-0z-qQr" kind="presentation" modalPresentationStyle="fullScreen" id="YWJ-ld-6wd"/>
                                 </connections>
                             </button>
                         </subviews>
@@ -255,7 +254,7 @@
                                     <color key="titleShadowColor" white="0.5" alpha="1" colorSpace="calibratedWhite"/>
                                 </state>
                                 <connections>
-                                    <segue destination="Peh-0z-qQr" kind="modal" id="npX-xz-k1Y"/>
+                                    <segue destination="Peh-0z-qQr" kind="presentation" modalPresentationStyle="fullScreen" id="npX-xz-k1Y"/>
                                 </connections>
                             </button>
                             <label opaque="NO" clipsSubviews="YES" userInteractionEnabled="NO" contentMode="left" horizontalHuggingPriority="251" verticalHuggingPriority="251" fixedFrame="YES" text="" lineBreakMode="tailTruncation" baselineAdjustment="alignBaselines" adjustsFontSizeToFit="NO" translatesAutoresizingMaskIntoConstraints="NO" id="Aky-Yy-Uqh">
@@ -342,7 +341,6 @@
     </simulatedMetricsContainer>
     <inferredMetricsTieBreakers>
         <segue reference="RuK-gZ-YJD"/>
-        <segue reference="n9L-hs-kM5"/>
         <segue reference="npX-xz-k1Y"/>
     </inferredMetricsTieBreakers>
 </document>

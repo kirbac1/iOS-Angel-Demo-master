@@ -7,6 +7,7 @@
 //
 
 #import <UIKit/UIKit.h>
+#import <CoreLocation/CoreLocation.h>
 #import "BLEDevice.h"
 #import "BLEUtility.h"
 #import "Sensors.h"
@@ -20,6 +21,10 @@
 @property (strong,nonatomic) sensorIMU3000 *gyroSensor;
 - (void)initBLE:(BLEDevice*) bleDevice;
 
+/// Simulated readings instead of a SensorTag, for the Simulator or a demo without hardware.
+@property (nonatomic) BOOL demoMode;
+- (void)initDemo;
+
 @property (strong,nonatomic) sensorTagValues *currentVal;
 @property (strong,nonatomic) NSMutableArray *vals;
 @property (strong,nonatomic) NSTimer *logTimer;
@@ -29,16 +34,8 @@
 -(void) configureSensorTag;
 -(void) deconfigureSensorTag;
 
-
-
-
-- (IBAction) handleCalibrateMag;
 - (IBAction) handleCalibrateGyro;
 
--(void) alphaFader:(NSTimer *)timer;
 -(void) logValues:(NSTimer *)timer;
-
-
-
 
 @end

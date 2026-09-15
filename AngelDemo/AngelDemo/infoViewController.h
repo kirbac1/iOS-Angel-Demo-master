@@ -14,7 +14,7 @@
 #define MIN_ALPHA_FADE 0.2f
 #define ALPHA_FADE_STEP 0.05f
 
-@interface infoViewController :  UIViewController<UIAlertViewDelegate>
+@interface infoViewController :  UIViewController
 
 
 @property (weak, nonatomic) IBOutlet UILabel *tempValue;
@@ -24,7 +24,7 @@
 
 @property (weak, nonatomic) IBOutlet UILabel *random;
 
--(void)setLabelValues:(NSString*)temp humidity:(NSString*)humidity motion:(NSString*)motion;
+-(void)setLabelValues:(NSString*)temp humidity:(NSString*)humidity RSSI:(NSString*)myRSSI;
 -(void)setTemp:(NSString*)temp;
 -(void)setHumidity:(NSString*)humidity;
 -(void)setRSSIValue:(NSNumber*)myRSSI;

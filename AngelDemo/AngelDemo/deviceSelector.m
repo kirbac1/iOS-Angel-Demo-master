@@ -10,6 +10,8 @@
 #import "infoTabBarController.h"
 @interface deviceSelector ()
 
+@property (nonatomic) BOOL bluetoothAlertShown;
+
 @end
 
 @implementation deviceSelector
@@ -25,6 +27,7 @@
     self.m = [[CBCentralManager alloc]initWithDelegate:self queue:nil];
     self.nDevices = [[NSMutableArray alloc]init];
     self.sensorTags = [[NSMutableArray alloc]init];
+    [self addDemoButton];
     NSLog(@"DEvice selector View DID load");
 }
 
@@ -35,32 +38,62 @@
 }
 
 -(void) viewWillAppear:(BOOL)animated {
+    [super viewWillAppear:animated];
     self.m.delegate = self;
 
 }
 
+- (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
+    [self showBluetoothAlertIfNeeded];
+}
+
+
+// Without a SensorTag, and always in the Simulator, which has no Bluetooth, this is the way in.
+- (void)addDemoButton {
+    UIButton *demo = [UIButton buttonWithType:UIButtonTypeSystem];
+    [demo setTitle:@"Try demo mode" forState:UIControlStateNormal];
+    demo.titleLabel.font = [UIFont systemFontOfSize:17 weight:UIFontWeightSemibold];
+    demo.translatesAutoresizingMaskIntoConstraints = NO;
+    [demo addTarget:self action:@selector(demoClicked) forControlEvents:UIControlEventTouchUpInside];
+    [self.view addSubview:demo];
+    [NSLayoutConstraint activateConstraints:@[
+        [demo.centerXAnchor constraintEqualToAnchor:self.view.centerXAnchor],
+        [demo.bottomAnchor constraintEqualToAnchor:self.view.safeAreaLayoutGuide.bottomAnchor constant:-24],
+    ]];
+}
+
+- (void)presentInfoTabConfiguredBy:(void (^)(infoTabBarController *tab))configure {
+    UIStoryboard *mainStoryboard = [UIStoryboard storyboardWithName:@"Main_iPhone" bundle: nil];
+
+    infoTabBarController *infoTab = (infoTabBarController*)[mainStoryboard instantiateViewControllerWithIdentifier: @"infoTabBar"];
+    configure(infoTab);
+    // Since iOS 13 a modal screen opens as a card unless asked otherwise.
+    infoTab.modalPresentationStyle = UIModalPresentationFullScreen;
+
+    [self presentViewController:infoTab animated:YES completion:nil];
+}
 
 - (IBAction)angelIconClicked{
+    if (self.sensorTags.count == 0) return;
     CBPeripheral *p = [self.sensorTags objectAtIndex: 0];
-    
+
     BLEDevice *d = [[BLEDevice alloc]init];
-    
+
     d.p = p;
     d.manager = self.m;
     d.setupData = [self makeSensorTagConfiguration];
-    
-    UIStoryboard *mainStoryboard = [UIStoryboard storyboardWithName:@"Main_iPhone" bundle: nil];
-    
-    infoTabBarController *infoTab = (infoTabBarController*)[mainStoryboard instantiateViewControllerWithIdentifier: @"infoTabBar"];
-    
-    
-    [infoTab initBLE:d];
-    
-     [self presentViewController:infoTab animated:YES completion:nil];
-    
-    //[self performSegueWithIdentifier:@"InfoView2" sender:self];
+
+    [self presentInfoTabConfiguredBy:^(infoTabBarController *tab) {
+        [tab initBLE:d];
+    }];
 }
 
+- (void)demoClicked {
+    [self presentInfoTabConfiguredBy:^(infoTabBarController *tab) {
+        [tab initDemo];
+    }];
+}
 
 
 
@@ -69,33 +102,48 @@
 #pragma mark - CBCentralManager delegate
 
 -(void)centralManagerDidUpdateState:(CBCentralManager *)central {
-    if (central.state != CBCentralManagerStatePoweredOn) {
-        UIAlertView *alertView = [[UIAlertView alloc]initWithTitle:@"BLE not supported !" message:[NSString stringWithFormat:@"CoreBluetooth return state: %d",central.state] delegate:self cancelButtonTitle:@"OK" otherButtonTitles:nil];
-        [alertView show];
-    }
-    else {
+    if (central.state == CBManagerStatePoweredOn) {
         [central scanForPeripheralsWithServices:nil options:nil];
     }
+    else {
+        [self showBluetoothAlertIfNeeded];
+    }
+}
+
+// The state can arrive before this screen is on show, when there is nothing to present
+// the alert from yet, so viewDidAppear: calls this again.
+- (void)showBluetoothAlertIfNeeded {
+    CBManagerState state = self.m.state;
+    if (state == CBManagerStatePoweredOn || state == CBManagerStateUnknown || state == CBManagerStateResetting) return;
+    if (self.bluetoothAlertShown || self.view.window == nil || self.presentedViewController != nil) return;
+    self.bluetoothAlertShown = YES;
+
+    NSString *message = [NSString stringWithFormat:@"CoreBluetooth return state: %ld\n\nTap \"Try demo mode\" to see the app without a SensorTag.", (long)state];
+    UIAlertController *alert = [UIAlertController alertControllerWithTitle:@"BLE not supported !"
+                                                                   message:message
+                                                            preferredStyle:UIAlertControllerStyleAlert];
+    [alert addAction:[UIAlertAction actionWithTitle:@"OK" style:UIAlertActionStyleCancel handler:nil]];
+    [self presentViewController:alert animated:YES completion:nil];
 }
 
 
 
 
 -(void)centralManager:(CBCentralManager *)central didDiscoverPeripheral:(CBPeripheral *)peripheral advertisementData:(NSDictionary *)advertisementData RSSI:(NSNumber *)RSSI {
-    
+
     NSLog(@"Found a BLE Device : %@",peripheral);
-    
+
     /* iOS 6.0 bug workaround : connect to device before displaying UUID !
        The reason for this is that the CFUUID .UUID property of CBPeripheral
        here is null the first time an unkown (never connected before in any app)
        peripheral is connected. So therefore we connect to all peripherals we find.
     */
-    
+
     peripheral.delegate = self;
     [central connectPeripheral:peripheral options:nil];
-    
+
     [self.nDevices addObject:peripheral];
-    
+
 }
 
 -(void)centralManager:(CBCentralManager *)central didConnectPeripheral:(CBPeripheral *)peripheral {
@@ -127,11 +175,11 @@
             }
         if (!replace) {
             [self.sensorTags addObject:peripheral];
-           
+
         }
+        // angel appears
+        [self.angelIcon setHidden:NO];
     }
-    // angel appears
-    [self.angelIcon setHidden:NO];
 
 }
 
@@ -163,13 +211,13 @@
     [d setValue:@"F000AA11-0451-4000-B000-000000000000"  forKey:@"Accelerometer data UUID"];
     [d setValue:@"F000AA12-0451-4000-B000-000000000000"  forKey:@"Accelerometer config UUID"];
     [d setValue:@"F000AA13-0451-4000-B000-000000000000"  forKey:@"Accelerometer period UUID"];
-    
+
     //Then we setup the rH sensor
     [d setValue:@"1" forKey:@"Humidity active"];
     [d setValue:@"F000AA20-0451-4000-B000-000000000000"   forKey:@"Humidity service UUID"];
     [d setValue:@"F000AA21-0451-4000-B000-000000000000" forKey:@"Humidity data UUID"];
     [d setValue:@"F000AA22-0451-4000-B000-000000000000" forKey:@"Humidity config UUID"];
-    
+
     //Then we setup the magnetometer
     [d setValue:@"1" forKey:@"Magnetometer active"];
     [d setValue:@"500" forKey:@"Magnetometer period"];
@@ -177,14 +225,14 @@
     [d setValue:@"F000AA31-0451-4000-B000-000000000000" forKey:@"Magnetometer data UUID"];
     [d setValue:@"F000AA32-0451-4000-B000-000000000000" forKey:@"Magnetometer config UUID"];
     [d setValue:@"F000AA33-0451-4000-B000-000000000000" forKey:@"Magnetometer period UUID"];
-    
+
     //Then we setup the barometric sensor
     [d setValue:@"1" forKey:@"Barometer active"];
     [d setValue:@"F000AA40-0451-4000-B000-000000000000" forKey:@"Barometer service UUID"];
     [d setValue:@"F000AA41-0451-4000-B000-000000000000" forKey:@"Barometer data UUID"];
     [d setValue:@"F000AA42-0451-4000-B000-000000000000" forKey:@"Barometer config UUID"];
     [d setValue:@"F000AA43-0451-4000-B000-000000000000" forKey:@"Barometer calibration UUID"];
-    
+
     [d setValue:@"1" forKey:@"Gyroscope active"];
     [d setValue:@"F000AA50-0451-4000-B000-000000000000" forKey:@"Gyroscope service UUID"];
     [d setValue:@"F000AA51-0451-4000-B000-000000000000" forKey:@"Gyroscope data UUID"];

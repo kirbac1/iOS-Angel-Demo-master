@@ -10,6 +10,10 @@
 #import "infoViewController.h"
 @interface infoTabBarController ()
 
+@property (strong, nonatomic) NSTimer *demoTimer;
+@property (nonatomic) NSUInteger demoTick;
+@property (strong, nonatomic) CLLocationManager *locationManager;
+
 @end
 
 @implementation infoTabBarController
@@ -24,8 +28,14 @@
 }
 
 - (void)viewDidAppear:(BOOL)animated {
+    [super viewDidAppear:animated];
     self.sensorsEnabled = [[NSMutableArray alloc] init];
-    if (!self.m_bleDevice.p.isConnected) {
+    if (self.demoMode) {
+        self.title = @"Demo mode";
+        [self startDemo];
+        return;
+    }
+    if (self.m_bleDevice.p.state != CBPeripheralStateConnected) {
         self.m_bleDevice.manager.delegate = self;
         [self.m_bleDevice.manager connectPeripheral:self.m_bleDevice.p options:nil];
     }
@@ -38,21 +48,34 @@
 
 
 -(void)viewWillDisappear:(BOOL)animated {
-    [self deconfigureSensorTag];
-    
+    [super viewWillDisappear:animated];
+    if (self.demoMode) {
+        [self stopDemo];
+    }
+    else {
+        [self deconfigureSensorTag];
+    }
 }
 
 -(void)viewDidDisappear:(BOOL)animated {
+    [super viewDidDisappear:animated];
     self.sensorsEnabled = nil;
     self.m_bleDevice.manager.delegate = nil;
+    // A repeating timer retains its target, so a running one would keep this screen alive.
+    [self.logTimer invalidate];
+    self.logTimer = nil;
 }
 
 - (void)viewDidLoad
 {
     [super viewDidLoad];
 	// Do any additional setup after loading the view.
-    
+
     self.infoView = (infoViewController *)[[self viewControllers] objectAtIndex:1];
+
+    // The map tab shows the user's position, which needs permission since iOS 8.
+    self.locationManager = [[CLLocationManager alloc] init];
+    [self.locationManager requestWhenInUseAuthorization];
 }
 
 - (void)didReceiveMemoryWarning
@@ -64,15 +87,63 @@
 - (void)initBLE:(BLEDevice*) bleDevice{
 
     self.m_bleDevice = bleDevice;
-    
+
     self.currentVal = [[sensorTagValues alloc]init];
     self.vals = [[NSMutableArray alloc]init];
-    
+    // Without an instance every gyroscope reading came back as zero.
+    self.gyroSensor = [[sensorIMU3000 alloc] init];
+
     self.logInterval = 1.0; //1000 ms
-    
+
     self.logTimer = [NSTimer scheduledTimerWithTimeInterval:self.logInterval target:self selector:@selector(logValues:) userInfo:nil repeats:YES];
 
     NSLog(@"INITBLE GIRDI");
+}
+
+- (void)initDemo {
+    self.demoMode = YES;
+    self.currentVal = [[sensorTagValues alloc] init];
+    self.vals = [[NSMutableArray alloc] init];
+}
+
+
+
+#pragma mark - Demo mode
+
+// Stands in for a SensorTag when there is none, for example in the iOS Simulator, which has
+// no Bluetooth. It feeds the Info screen the same values the sensor callbacks below do.
+- (void)startDemo {
+    self.demoTick = 0;
+    [self.demoTimer invalidate];
+    self.demoTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(demoStep:) userInfo:nil repeats:YES];
+    [self demoStep:self.demoTimer];
+}
+
+- (void)stopDemo {
+    [self.demoTimer invalidate];
+    self.demoTimer = nil;
+}
+
+- (void)demoStep:(NSTimer *)timer {
+    self.demoTick++;
+    double t = self.demoTick;
+
+    float tAmb = 22.5 + 1.5 * sin(t / 20.0) + arc4random_uniform(40) / 100.0;
+    float humidity = 45.0 + 5.0 * sin(t / 30.0) + arc4random_uniform(100) / 100.0;
+    self.currentVal.tAmb = tAmb;
+    self.currentVal.humidity = humidity;
+    [self.infoView setTemp:[NSString stringWithFormat:@"%.1f°C", tAmb]];
+    [self.infoView setHumidity:[NSString stringWithFormat:@"%0.1f%%rH", humidity]];
+
+    // Signal strength drifts away and back, passing through the -80 to -90 dBm band
+    // that raises the forget alert.
+    int rssi = (int)(-72.0 - 16.0 * sin(t / 8.0)) + (int)arc4random_uniform(4);
+    [self.infoView setRSSIValue:@(rssi)];
+
+    // Every 15 seconds the tag is "picked up".
+    if (self.demoTick % 15 == 0) {
+        [self.infoView sendWarningonMotion];
+    }
 }
 
 
@@ -82,9 +153,9 @@
 
 -(void) configureSensorTag {
     // Configure sensortag, turning on Sensors and setting update period for sensors etc ...
-    
-    
-    
+
+
+
     if (([self sensorEnabled:@"Ambient temperature active"]) || ([self sensorEnabled:@"IR temperature active"])) {
         // Enable Temperature sensor
         CBUUID *sUUID = [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"IR temperature service UUID"]];
@@ -93,12 +164,12 @@
         [BLEUtility writeCharacteristic:self.m_bleDevice.p sCBUUID:sUUID cCBUUID:cUUID data:[NSData dataWithBytes:&data length:1]];
         cUUID = [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"IR temperature data UUID"]];
         [BLEUtility setNotificationForCharacteristic:self.m_bleDevice.p sCBUUID:sUUID cCBUUID:cUUID enable:YES];
-        
+
         if ([self sensorEnabled:@"Ambient temperature active"]) [self.sensorsEnabled addObject:@"Ambient temperature"];
         if ([self sensorEnabled:@"IR temperature active"]) [self.sensorsEnabled addObject:@"IR temperature"];
-        
+
     }
-    
+
     if ([self sensorEnabled:@"Accelerometer active"]) {
         CBUUID *sUUID = [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Accelerometer service UUID"]];
         CBUUID *cUUID = [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Accelerometer config UUID"]];
@@ -113,8 +184,8 @@
         [BLEUtility setNotificationForCharacteristic:self.m_bleDevice.p sCBUUID:sUUID cCBUUID:cUUID enable:YES];
         [self.sensorsEnabled addObject:@"Accelerometer"];
     }
-    
-    
+
+
     if ([self sensorEnabled:@"Humidity active"]) {
         CBUUID *sUUID = [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Humidity service UUID"]];
         CBUUID *cUUID = [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Humidity config UUID"]];
@@ -124,7 +195,7 @@
         [BLEUtility setNotificationForCharacteristic:self.m_bleDevice.p sCBUUID:sUUID cCBUUID:cUUID enable:YES];
         [self.sensorsEnabled addObject:@"Humidity"];
     }
-    
+
        if ([self sensorEnabled:@"Gyroscope active"]) {
         CBUUID *sUUID =  [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Gyroscope service UUID"]];
         CBUUID *cUUID =  [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Gyroscope config UUID"]];
@@ -134,9 +205,9 @@
         [BLEUtility setNotificationForCharacteristic:self.m_bleDevice.p sCBUUID:sUUID cCBUUID:cUUID enable:YES];
         [self.sensorsEnabled addObject:@"Gyroscope"];
     }
-    
 
-    
+
+
 }
 
 -(void) deconfigureSensorTag {
@@ -157,7 +228,7 @@
         cUUID =  [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Accelerometer data UUID"]];
         [BLEUtility setNotificationForCharacteristic:self.m_bleDevice.p sCBUUID:sUUID cCBUUID:cUUID enable:NO];
     }
-    
+
        if ([self sensorEnabled:@"Humidity active"]) {
         CBUUID *sUUID =  [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Humidity service UUID"]];
         CBUUID *cUUID =  [CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Humidity config UUID"]];
@@ -188,7 +259,7 @@
 
 -(int)sensorPeriod:(NSString *)Sensor {
     NSString *val = [self.m_bleDevice.setupData valueForKey:Sensor];
-    return [val integerValue];
+    return (int)[val integerValue];
 }
 
 
@@ -196,7 +267,7 @@
 #pragma mark - CBCentralManager delegate function
 
 -(void) centralManagerDidUpdateState:(CBCentralManager *)central {
-    
+
 }
 
 -(void) centralManager:(CBCentralManager *)central didConnectPeripheral:(CBPeripheral *)peripheral {
@@ -204,8 +275,8 @@
     [peripheral discoverServices:nil];
 }
 - (void)centralManager:(CBCentralManager *)central didDisconnectPeripheral:(CBPeripheral *)peripheral error:(NSError *)error{
-    
-    
+
+
     [self.infoView deviceDisconnected];
 }
 
@@ -235,94 +306,68 @@
     //NSLog(@"didUpdateValueForCharacteristic = %@",characteristic.UUID);
     NSString *sensTemp;
     NSString* sensHumidity;
-    NSString* sensMotion;
-    
+
     if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"IR temperature data UUID"]]]) {
         float tAmb = [sensorTMP006 calcTAmb:characteristic.value];
         float tObj = [sensorTMP006 calcTObj:characteristic.value];
-        
-        /*     self.ambientTemp.temperature.text = [NSString stringWithFormat:@"%.1f°C",tAmb];
-         self.ambientTemp.temperature.textColor = [UIColor blackColor];
-         self.ambientTemp.temperatureGraph.progress = (tAmb / 100.0) + 0.5;
-         self.irTemp.temperature.text = [NSString stringWithFormat:@"%.1f°C",tObj];
-         self.irTemp.temperatureGraph.progress = (tObj / 1000.0) + 0.5;
-         self.irTemp.temperature.textColor = [UIColor blackColor];
-         */
+
         sensTemp =  [NSString stringWithFormat:@"%.1f°C",tAmb];
         self.currentVal.tAmb = tAmb;
         self.currentVal.tIR = tObj;
-        
-        NSLog(sensTemp);
+
+        NSLog(@"%@", sensTemp);
         [self.infoView setTemp:sensTemp];
     }
-    
+
     if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Humidity data UUID"]]]) {
-        
+
         float rHVal = [sensorSHT21 calcPress:characteristic.value];
-        /*  self.rH.temperature.text = [NSString stringWithFormat:@"%0.1f%%rH",rHVal];
-         self.rH.temperatureGraph.progress = (rHVal / 100);
-         self.rH.temperature.textColor = [UIColor blackColor];
-         */
         self.currentVal.humidity = rHVal;
         sensHumidity = [NSString stringWithFormat:@"%0.1f%%rH",rHVal];
-        NSLog(sensHumidity);
+        NSLog(@"%@", sensHumidity);
         [self.infoView setHumidity:sensHumidity];
     }
-    
-    
-    
+
+
+
     if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Gyroscope data UUID"]]]) {
-        
+
         float x = [self.gyroSensor calcXValue:characteristic.value];
         float y = [self.gyroSensor calcYValue:characteristic.value];
         float z = [self.gyroSensor calcZValue:characteristic.value];
-        
-        /*  self.gyro.accValueX.text = [NSString stringWithFormat:@"X: % 0.1f°/S",x];
-         self.gyro.accValueY.text = [NSString stringWithFormat:@"Y: % 0.1f°/S",y];
-         self.gyro.accValueZ.text = [NSString stringWithFormat:@"Z: % 0.1f°/S",z];
-         
-         self.gyro.accValueX.textColor = [UIColor blackColor];
-         self.gyro.accValueY.textColor = [UIColor blackColor];
-         self.gyro.accValueZ.textColor = [UIColor blackColor];
-         
-         self.gyro.accGraphX.progress = (x / [sensorIMU3000 getRange]) + 0.5;
-         self.gyro.accGraphY.progress = (y / [sensorIMU3000 getRange]) + 0.5;
-         self.gyro.accGraphZ.progress = (z / [sensorIMU3000 getRange]) + 0.5;
-         */
-        
-        
+
         self.currentVal.gyroX = x;
         self.currentVal.gyroY = y;
         self.currentVal.gyroZ = z;
-  
+
     }
-    
+
     if ([characteristic.UUID isEqual:[CBUUID UUIDWithString:[self.m_bleDevice.setupData valueForKey:@"Accelerometer data UUID"]]]) {
         float x = [sensorKXTJ9 calcXValue:characteristic.value];
         float y = [sensorKXTJ9 calcYValue:characteristic.value];
         float z = [sensorKXTJ9 calcZValue:characteristic.value];
-        
+
         float mot = (pow(x,2)-pow(self.currentVal.gyroX,2))+(pow(y,2)-pow(self.currentVal.gyroY,2))+(pow(z,2)-pow(self.currentVal.gyroZ,2));
         if( mot < 0.1)
             NSLog(@"NO MOTION");
         else [self.infoView sendWarningonMotion];
-        
+
         self.currentVal.accX = x;
         self.currentVal.accY = y;
         self.currentVal.accZ = z;
-        
+
     }
-      CBPeripheral* myPeripheral = [self.m_bleDevice p];
-      [myPeripheral readRSSI];
-      NSNumber *number =myPeripheral.RSSI;
-      [self.infoView setRSSIValue:number];
 
+    // The RSSI property was removed from CBPeripheral; the value now arrives in
+    // peripheral:didReadRSSI:error: below.
+    [peripheral readRSSI];
 }
-    
-        
-    //[infoView setLabelValues:sensTemp humidity:sensHumidity motion:sensMotion];
-    
 
+-(void)peripheral:(CBPeripheral *)peripheral didReadRSSI:(NSNumber *)RSSI error:(NSError *)error {
+    if (!error) {
+        [self.infoView setRSSIValue:RSSI];
+    }
+}
 
 
 -(void)peripheral:(CBPeripheral *)peripheral didWriteValueForCharacteristic:(CBCharacteristic *)characteristic error:(NSError *)error {
@@ -358,9 +403,9 @@
     newVal.press = self.currentVal.press;
     newVal.humidity = self.currentVal.humidity;
     newVal.timeStamp = date;
-    
+
     [self.vals addObject:newVal];
-    
+
 }
 
 

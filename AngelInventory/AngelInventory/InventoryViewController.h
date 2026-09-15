@@ -7,14 +7,13 @@
 //
 
 #import <UIKit/UIKit.h>
-#import "ZBarSDK.h"
+#import <AVFoundation/AVFoundation.h>
 
-@interface InventoryViewController : UIViewController <UIImagePickerControllerDelegate,ZBarReaderDelegate>{
+@interface InventoryViewController : UIViewController <AVCaptureMetadataOutputObjectsDelegate>{
     
     IBOutlet UITextView *resultTextView;
 }
-@property (nonatomic, retain) IBOutlet UITextView *resultTextView;
-@property (nonatomic, retain) UIImagePickerController *imgPicker;
+@property (nonatomic, strong) IBOutlet UITextView *resultTextView;
 
 -(IBAction)StartScan:(id) sender;
 
